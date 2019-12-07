@@ -29,7 +29,7 @@ function calculateFuelMass(fuelElement: number): number {
     return fuelSum;
 }
 
-const tester1 = new Tester(getFirstSolution);
+const tester1 = new Tester<number[], number>(getFirstSolution);
 tester1.test([
     {input: [12], expected: 2},
     {input: [14], expected: 2},

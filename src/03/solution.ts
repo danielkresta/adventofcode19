@@ -40,7 +40,7 @@ function getFirstSolution([wire1, wire2]: string[][]): number {
     let wire1Coords = getWireCoords(wire1);
     let wire2Coords = getWireCoords(wire2);
 
-    const compareDistances = (a, b) => a.distance - b.distance;
+    const compareDistances = (a: PathPoint, b: PathPoint) => a.distance - b.distance;
     wire1Coords = wire1Coords.sort(compareDistances);
     wire2Coords = wire2Coords.sort(compareDistances);
 
@@ -51,7 +51,7 @@ function getSecondSolution([wire1, wire2]: string[][]): number {
     let wire1Coords = getWireCoords(wire1);
     let wire2Coords = getWireCoords(wire2);
 
-    const compareLengths = (a, b) => a.wireLength - b.wireLength;
+    const compareLengths = (a: PathPoint, b: PathPoint) => a.wireLength - b.wireLength;
     wire1Coords = wire1Coords.sort(compareLengths);
     wire2Coords = wire2Coords.sort(compareLengths);
     

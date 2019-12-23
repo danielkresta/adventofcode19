@@ -12,10 +12,10 @@ export class Tester<T, R> {
         solutionCallback: SolCallback<T, R>,
     ) {
         this._solutionCallback = solutionCallback;
-        console.log("-----------------------------------");
     }
 
     public test(tests: TestInput<T, R>[]): boolean {
+        console.log("-----------------------------------");
         const allPassed = tests.reduce((passed, test) => {
             passed = passed && this.testSolution( test.input, test.expected );
             return passed;
@@ -25,7 +25,7 @@ export class Tester<T, R> {
     }
 
     private testSolution(input: T, expectedResult: R): boolean {
-        console.log("Running test #" + this._testCount++);
+        console.log("Running test #" + ++this._testCount);
         const result = this._solutionCallback(input);
         if (!Array.isArray(expectedResult) && result === expectedResult) {
             return true;

@@ -1,10 +1,10 @@
 import { input } from "./input";
 import { Tester } from "./../test/test";
-import { Processor } from "./../intcode-processor/processor";
+import { Processor, ProcessorState } from "./../intcode-processor/processor";
 
 
-const tester = new Tester<number[], number>(getFirstSolution);
-tester.test([
+const tester1 = new Tester<number[], number>(getFirstSolution);
+tester1.test([
     {
         input: [3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0],
         expected: 43210,
@@ -20,6 +20,23 @@ tester.test([
 ]);
 console.log( "Day 7, part 1 solution: " + getFirstSolution(input));
 
+const tester2 = new Tester<number[], number>(getSecondSolution);
+tester2.test([
+    {
+        input: [3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5],
+        expected: 139629729,
+    },
+    {
+        input: [
+            3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,
+            -5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,
+            53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10
+        ],
+        expected: 18216,
+    },
+]);
+console.log( "Day 7, part 2 solution: " + getSecondSolution(input));
+
 
 function getFirstSolution(input: number[]): number {
     const ampControllers = [] as Processor[];
@@ -28,7 +45,19 @@ function getFirstSolution(input: number[]): number {
     }
     const phaseCombinations = generatePermutations<number>([0, 1, 2, 3, 4]);
     return phaseCombinations.reduce((maxOutput, phase) => {
-        const output = calculateOutput(phase, ampControllers);
+        const output = calculateOutput(phase, ampControllers, 0, true);
+        return maxOutput > output ? maxOutput : output;
+    }, 0);
+}
+
+function getSecondSolution(input: number[]) {
+    const ampControllers = [] as Processor[];
+    for (let i = 0; i < 5; i++) {
+        ampControllers.push(new Processor(input));
+    }
+    const phaseCombinations = generatePermutations<number>([5, 6, 7, 8, 9]);
+    return phaseCombinations.reduce((maxOutput, phase) => {
+        const output = calculateFeedbackOutput(phase, ampControllers);
         return maxOutput > output ? maxOutput : output;
     }, 0);
 }
@@ -53,11 +82,27 @@ function generatePermutations<T>(list: T[]) {
     return finished;
 }
 
-function calculateOutput(phases: number[], ampControllers: Processor[]): number {
-    return ampControllers.reduce((signal, amp) => {
-        return amp.startProgram([
-            phases.shift(),
-            signal,
-        ]);
-    }, 0);
+function calculateOutput(
+    phases: number[],
+    ampControllers: Processor[],
+    startSignal: number,
+    setPhases?: boolean
+): number {
+    return ampControllers
+        .reduce(
+            (signal, amp) => amp.startProgram([
+                ...(setPhases ? [phases.shift()] : []),
+                signal,
+            ]),
+            startSignal,
+        );
+}
+
+function calculateFeedbackOutput(phases: number[], ampControllers: Processor[]): number {
+    let output = calculateOutput(phases, ampControllers, 0, true);
+
+    while (ampControllers[4].state !== ProcessorState.HALT) {
+        output = calculateOutput(phases, ampControllers, output);
+    }
+    return output;
 }

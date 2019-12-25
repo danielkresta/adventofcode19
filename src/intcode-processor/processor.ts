@@ -15,7 +15,7 @@ interface InstructionType {
     modeIsImmediate: boolean[];
 }
 
-enum ProcessorState {
+export enum ProcessorState {
     NONE,
     RUNNING,
     WAITING,
@@ -30,7 +30,7 @@ export class Processor {
     private _input: number[];
     private _output: number[] = [];
     private _instructionPointer = 0;
-    private _state = ProcessorState.NONE;
+    public state = ProcessorState.NONE;
 
     constructor(
         program: number[],
@@ -130,11 +130,11 @@ export class Processor {
 
     private _runProgram(): void {
         let halt: boolean;
-        this._state = ProcessorState.RUNNING;
+        this.state = ProcessorState.RUNNING;
         while (
             !halt &&
             this._instructionPointer < this._memory.length &&
-            this._state === ProcessorState.RUNNING
+            this.state === ProcessorState.RUNNING
         ) {
             this._process();
         }
@@ -143,7 +143,7 @@ export class Processor {
     private _process() {
         const currentInstructionType = this._parseIntruction( this._memory[this._instructionPointer] );
         if (currentInstructionType == null || currentInstructionType.opcode === 99) {
-            this._state = ProcessorState.HALT;
+            this.state = ProcessorState.HALT;
             this.reset();
             return;
         }
@@ -151,13 +151,12 @@ export class Processor {
         const currentInstruction = this.instructions[currentInstructionType.opcode];
         if (currentInstruction == null) {
             console.error("Unknown instruction " + currentInstructionType.opcode);
-            this._state = ProcessorState.ERROR;
+            this.state = ProcessorState.ERROR;
             return;
         }
 
         if (currentInstruction.name === "input" && this._input.length === 0) {
-            this._state = ProcessorState.WAITING;
-            console.log("Waiting...");
+            this.state = ProcessorState.WAITING;
             return;
         }
 

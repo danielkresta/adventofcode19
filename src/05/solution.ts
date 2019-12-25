@@ -17,21 +17,43 @@ interface InstructionType {
     modeIsImmediate: boolean[];
 }
 
-class Processor {
+enum ProcessorState {
+    NONE,
+    RUNNING,
+    WAITING,
+    HALT,
+    ERROR,
+}
+
+export class Processor {
 
     private _memory: number[];
     private _program: number[];
-    private _input: number;
+    private _input: number[];
     private _output: number[] = [];
     private _instructionPointer = 0;
+    private _state = ProcessorState.NONE;
 
     constructor(
         program: number[],
     ) {
         this._program = program;
+        this._memory = [...this._program];
     }
 
-    private instructions: {[key: number]: Instruction} = {
+    startProgram(input: number[]): number {
+        this._input = [...input];
+        this._runProgram();
+        return this._output.slice(-1)[0];
+    }
+
+    reset(): void {
+        this._memory = [...this._program];
+        this._instructionPointer = 0;
+    }
+
+
+    private readonly instructions: {[key: number]: Instruction} = {
         1: {
             name: "add",
             parametersCount: 3,
@@ -49,7 +71,9 @@ class Processor {
         3: {
             name: "input",
             parametersCount: 1,
-            execute: parameters => this._memory[parameters[1].value] = this._input,
+            execute: parameters => {
+                this._memory[parameters[1].value] = this._input.shift();
+            },
         },
         4: {
             name: "output",
@@ -106,43 +130,40 @@ class Processor {
         },
     };
 
-    get memory() {
-        return this._memory;
-    }
-
-    runProgram(input: number): number {
-        this.reset();
-        this._input = input;
+    private _runProgram(): void {
         let halt: boolean;
-        while (!halt && this._instructionPointer < this._memory.length) {
-            halt = this.process();
+        this._state = ProcessorState.RUNNING;
+        while (
+            !halt &&
+            this._instructionPointer < this._memory.length &&
+            this._state === ProcessorState.RUNNING
+        ) {
+            this._process();
         }
-        return this._output.slice(-1)[0];
     }
 
-    private reset(): void {
-        this._memory = [...this._program];
-        this._instructionPointer = 0;
-    }
-
-    /**
-     * Runs one instruction
-     * Return value: halt?
-     */
-    process(): boolean {
-        const currentInstructionType = this.parseIntruction( this._memory[this._instructionPointer] );
+    private _process() {
+        const currentInstructionType = this._parseIntruction( this._memory[this._instructionPointer] );
         if (currentInstructionType == null || currentInstructionType.opcode === 99) {
-            this._instructionPointer++;
-            return true;
+            this._state = ProcessorState.HALT;
+            this.reset();
+            return;
         }
 
         const currentInstruction = this.instructions[currentInstructionType.opcode];
         if (currentInstruction == null) {
             console.error("Unknown instruction " + currentInstructionType.opcode);
-            return true;
+            this._state = ProcessorState.ERROR;
+            return;
         }
 
-        const parameters = this.getParameters(
+        if (currentInstruction.name === "input" && this._input.length === 0) {
+            this._state = ProcessorState.WAITING;
+            console.log("Waiting...");
+            return;
+        }
+
+        const parameters = this._getParameters(
             currentInstruction.parametersCount,
             currentInstructionType.modeIsImmediate
         );
@@ -153,7 +174,7 @@ class Processor {
         }
     }
 
-    private parseIntruction(instruction: number): InstructionType {
+    private _parseIntruction(instruction: number): InstructionType {
         if (instruction == null) return;
         const [mode3, mode2, mode1, ...opcode] = instruction.toString().padStart(5, "0").split("");
         return {
@@ -167,7 +188,7 @@ class Processor {
         };
     }
 
-    private getParameters(parametersCount: number, modeIsImmediate: boolean[]): Parameter[] {
+    private _getParameters(parametersCount: number, modeIsImmediate: boolean[]): Parameter[] {
         const parameters: Parameter[] = [];
         for (let parameterIndex = 1; parameterIndex <= parametersCount; parameterIndex++) {
             const parameter = this._memory[this._instructionPointer + parameterIndex];
@@ -182,42 +203,41 @@ class Processor {
     private getParameter(param: Parameter): number {
         return param.modeIsImmediate ? param.value : this._memory[param.value];
     }
-
-
 }
 
 const day5program = new Processor(input);
-const output = day5program.runProgram(1);
-console.log("Part 1: " + output);
-const output2 = day5program.runProgram(5);
-console.log("Part 2: " + output2);
+const output = day5program.startProgram([1]);
+day5program.reset();
+console.log("Day 5, part 1 solution: " + output);
+const output2 = day5program.startProgram([5]);
+console.log("Day 5, part 2 solution: " + output2);
 
 // const isEqualToEight = new Processor([3,9,8,9,10,9,4,9,99,-1,8]);
-// console.log(`Input ${1} is equal to 8: ${isEqualToEight.runProgram(1)}`)
-// console.log(`Input ${8} is equal to 8: ${isEqualToEight.runProgram(8)}`)
-// console.log(`Input ${10} is equal to 8: ${isEqualToEight.runProgram(10)}`)
+// console.log(`Input ${1} is equal to 8: ${isEqualToEight.startProgram([1])}`)
+// console.log(`Input ${8} is equal to 8: ${isEqualToEight.startProgram([8])}`)
+// console.log(`Input ${10} is equal to 8: ${isEqualToEight.startProgram([10])}`)
 
 // const isLessThanEight = new Processor([3,9,7,9,10,9,4,9,99,-1,8]);
-// console.log(`Input ${1} is less than 8: ${isLessThanEight.runProgram(1)}`)
-// console.log(`Input ${8} is less than 8: ${isLessThanEight.runProgram(8)}`)
-// console.log(`Input ${10} is less than 8: ${isLessThanEight.runProgram(10)}`)
+// console.log(`Input ${1} is less than 8: ${isLessThanEight.startProgram([1])}`)
+// console.log(`Input ${8} is less than 8: ${isLessThanEight.startProgram([8])}`)
+// console.log(`Input ${10} is less than 8: ${isLessThanEight.startProgram([10])}`)
 
 // const isEqualToEight2 = new Processor([3,3,1108,-1,8,3,4,3,99]);
-// console.log(`Input ${1} is equal to 8: ${isEqualToEight2.runProgram(1)}`)
-// console.log(`Input ${8} is equal to 8: ${isEqualToEight2.runProgram(8)}`)
-// console.log(`Input ${10} is equal to 8: ${isEqualToEight2.runProgram(10)}`)
+// console.log(`Input ${1} is equal to 8: ${isEqualToEight2.startProgram([1])}`)
+// console.log(`Input ${8} is equal to 8: ${isEqualToEight2.startProgram([8])}`)
+// console.log(`Input ${10} is equal to 8: ${isEqualToEight2.startProgram([10])}`)
 
 // const isLessThanEight2 = new Processor([3,3,1107,-1,8,3,4,3,99]);
-// console.log(`Input ${1} is less than 8: ${isLessThanEight2.runProgram(1)}`)
-// console.log(`Input ${8} is less than 8: ${isLessThanEight2.runProgram(8)}`)
-// console.log(`Input ${10} is less than 8: ${isLessThanEight2.runProgram(10)}`)
+// console.log(`Input ${1} is less than 8: ${isLessThanEight2.startProgram([1])}`)
+// console.log(`Input ${8} is less than 8: ${isLessThanEight2.startProgram([8])}`)
+// console.log(`Input ${10} is less than 8: ${isLessThanEight2.startProgram([10])}`)
 
 // const isInputZero = new Processor([3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9]);
-// console.log(`Input ${0} is: ${isInputZero.runProgram(0)}`);
-// console.log(`Input ${1} is: ${isInputZero.runProgram(1)}`);
-// console.log(`Input ${10} is: ${isInputZero.runProgram(10)}`);
+// console.log(`Input ${0} is: ${isInputZero.startProgram([0])}`);
+// console.log(`Input ${1} is: ${isInputZero.startProgram([1])}`);
+// console.log(`Input ${10} is: ${isInputZero.startProgram([10])}`);
 
 // const isInputZero2 = new Processor([3,3,1105,-1,9,1101,0,0,12,4,12,99,1]);
-// console.log(`Input ${1} is: ${isInputZero2.runProgram(0)}`)
-// console.log(`Input ${8} is: ${isInputZero2.runProgram(1)}`)
-// console.log(`Input ${10} is: ${isInputZero2.runProgram(10)}`)
+// console.log(`Input ${1} is: ${isInputZero2.startProgram([0])}`)
+// console.log(`Input ${8} is: ${isInputZero2.startProgram([1])}`)
+// console.log(`Input ${10} is: ${isInputZero2.startProgram([10])}`)

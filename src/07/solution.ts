@@ -1,6 +1,6 @@
 import { input } from "./input";
 import { Tester } from "./../test/test";
-import { Processor } from "./../05/solution";
+import { Processor } from "./../intcode-processor/processor";
 
 
 const tester = new Tester<number[], number>(getFirstSolution);

@@ -5,14 +5,20 @@ interface Instruction {
     execute?: (parameters: Parameter[]) => void;
 }
 
+enum ParameterMode {
+    POSITION = "0",
+    IMMEDIATE = "1",
+    RELATIVE = "2",
+}
+
 interface Parameter {
     value: number;
-    modeIsImmediate: boolean;
+    modeType: ParameterMode;
 }
 
 interface InstructionType {
     opcode: number;
-    modeIsImmediate: boolean[];
+    modeType: ParameterMode[];
 }
 
 export enum ProcessorState {
@@ -30,6 +36,7 @@ export class Processor {
     private _input: number[];
     private _output: number[] = [];
     private _instructionPointer = 0;
+    private _relativeBase = 0;
     public state = ProcessorState.NONE;
 
     constructor(
@@ -37,6 +44,10 @@ export class Processor {
     ) {
         this._program = program;
         this._memory = [...this._program];
+    }
+
+    get output() {
+        return this._output;
     }
 
     startProgram(input: number[]): number {
@@ -48,6 +59,7 @@ export class Processor {
     reset(): void {
         this._memory = [...this._program];
         this._instructionPointer = 0;
+        this._relativeBase = 0;
     }
 
 
@@ -56,35 +68,40 @@ export class Processor {
             name: "add",
             parametersCount: 3,
             execute: parameters => {
-                this._memory[parameters[3].value] = this.getParameter(parameters[1]) + this.getParameter(parameters[2]);
+                const result = this._getParameter(parameters[1]) + this._getParameter(parameters[2]);
+                this._setParameter(parameters[3], result);
             },
         },
         2: {
             name: "multiply",
             parametersCount: 3,
             execute: parameters => {
-                this._memory[parameters[3].value] = this.getParameter(parameters[1]) * this.getParameter(parameters[2]);
+                const result = this._getParameter(parameters[1]) * this._getParameter(parameters[2]);
+                this._setParameter(parameters[3], result);
             }
         },
         3: {
             name: "input",
             parametersCount: 1,
             execute: parameters => {
-                this._memory[parameters[1].value] = this._input.shift();
+                console.log(parameters)
+                this._setParameter(parameters[1], this._input.shift());
             },
         },
         4: {
             name: "output",
             parametersCount: 1,
-            execute: parameters => this._output.push( this._memory[parameters[1].value] ),
+            execute: parameters => {
+                this._output.push(this._getParameter(parameters[1]));
+            },
         },
         5: {
             name: "jump-if-true",
             parametersCount: 2,
             doNotMovePointer: true,
             execute: parameters => {
-                if (this.getParameter(parameters[1]) !== 0) {
-                    this._instructionPointer = this.getParameter(parameters[2]);
+                if (this._getParameter(parameters[1]) !== 0) {
+                    this._instructionPointer = this._getParameter(parameters[2]);
                 } else {
                     this._instructionPointer += 3;
                 }
@@ -95,8 +112,8 @@ export class Processor {
             parametersCount: 2,
             doNotMovePointer: true,
             execute: parameters => {
-                if (this.getParameter(parameters[1]) === 0) {
-                    this._instructionPointer = this.getParameter(parameters[2]);
+                if (this._getParameter(parameters[1]) === 0) {
+                    this._instructionPointer = this._getParameter(parameters[2]);
                 } else {
                     this._instructionPointer += 3;
                 }
@@ -106,21 +123,26 @@ export class Processor {
             name: "less-than",
             parametersCount: 3,
             execute: parameters => {
-                this._memory[parameters[3].value] = 
-                    this.getParameter(parameters[1]) < this.getParameter(parameters[2])
+                const result = this._getParameter(parameters[1]) < this._getParameter(parameters[2])
                     ? 1
                     : 0;
+                this._setParameter(parameters[3], result);
             },
         },
         8: {
             name: "equals",
             parametersCount: 3,
             execute: parameters => {
-                this._memory[parameters[3].value] = 
-                    this.getParameter(parameters[1]) === this.getParameter(parameters[2])
+                const result = this._getParameter(parameters[1]) === this._getParameter(parameters[2])
                     ? 1
                     : 0;
+                this._setParameter(parameters[3], result);
             },
+        },
+        9: {
+            name: "adjust-rel-base",
+            parametersCount: 1,
+            execute: parameters => this._relativeBase += this._getParameter(parameters[1])
         },
         99: {
             name: "halt",
@@ -142,6 +164,7 @@ export class Processor {
 
     private _process() {
         const currentInstructionType = this._parseIntruction( this._memory[this._instructionPointer] );
+        // console.log(currentInstructionType)
         if (currentInstructionType == null || currentInstructionType.opcode === 99) {
             this.state = ProcessorState.HALT;
             this.reset();
@@ -162,7 +185,7 @@ export class Processor {
 
         const parameters = this._getParameters(
             currentInstruction.parametersCount,
-            currentInstructionType.modeIsImmediate
+            currentInstructionType.modeType
         );
 
         currentInstruction.execute(parameters);
@@ -176,28 +199,60 @@ export class Processor {
         const [mode3, mode2, mode1, ...opcode] = instruction.toString().padStart(5, "0").split("");
         return {
             opcode: Number(opcode.join("")),
-            modeIsImmediate: [
+            modeType: [
                 null,
-                mode1 === "1",
-                mode2 === "1",
-                mode3 === "1",
+                mode1 as ParameterMode,
+                mode2 as ParameterMode,
+                mode3 as ParameterMode,
             ],
         };
     }
 
-    private _getParameters(parametersCount: number, modeIsImmediate: boolean[]): Parameter[] {
+    private _getParameters(parametersCount: number, modeType: ParameterMode[]): Parameter[] {
         const parameters: Parameter[] = [];
         for (let parameterIndex = 1; parameterIndex <= parametersCount; parameterIndex++) {
             const parameter = this._memory[this._instructionPointer + parameterIndex];
             parameters[parameterIndex] = {
                 value: parameter,
-                modeIsImmediate: modeIsImmediate[parameterIndex],
+                modeType: modeType[parameterIndex],
             };
         }
         return parameters;
     }
 
-    private getParameter(param: Parameter): number {
-        return param.modeIsImmediate ? param.value : this._memory[param.value];
+    private _getParameter(param: Parameter): number {
+        let value;
+        let pointer;
+        switch (param.modeType) {
+            case ParameterMode.POSITION:
+                pointer = param.value;
+                if (pointer < 0) return;
+                value = this._memory[pointer];
+                break;
+            case ParameterMode.IMMEDIATE:
+                value = param.value;
+                break;
+            case ParameterMode.RELATIVE:
+                pointer = param.value+this._relativeBase;
+                if (pointer < 0) return;
+                value = this._memory[pointer];
+                break;
+        }
+        return value != null ? value : 0;
+    }
+
+    private _setParameter(param: Parameter, value: number): void {
+        let pointer;
+        switch (param.modeType) {
+            case ParameterMode.POSITION:
+            case ParameterMode.IMMEDIATE:
+                pointer = param.value;
+                break;
+            case ParameterMode.RELATIVE:
+                pointer = param.value+this._relativeBase;
+                break;
+        }
+        if (pointer < 0) return;
+        this._memory[pointer] = value;
     }
 }

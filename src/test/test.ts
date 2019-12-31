@@ -26,14 +26,21 @@ export class Tester<T, R> {
 
     private testSolution(input: T, expectedResult: R): boolean {
         console.log("Running test #" + ++this._testCount);
-        const result = this._solutionCallback(input);
-        if (!Array.isArray(expectedResult) && result === expectedResult) {
-            return true;
-        } else if (Array.isArray(expectedResult) && JSON.stringify(result) === JSON.stringify(expectedResult)) {
-            return true;
+        let result: R | string = this._solutionCallback(input);
+        let expected: R | string;
+        if (Array.isArray(expectedResult)) {
+            expected = JSON.stringify(expectedResult);
+            result = JSON.stringify(result);
+        } else if (typeof expectedResult === "object") {
+            expected = JSON.stringify(expectedResult);
+            result = JSON.stringify(result);
         } else {
-            console.log( `Fail! Result ${result} is not matching the expected ${expectedResult}` );
-            return false;
+            expected = expectedResult;
         }
+
+        if (result !== expected) {
+            console.log( `Fail! Result ${result} is not matching the expected ${expected}` );
+        }
+        return result === expected;
     }
 }

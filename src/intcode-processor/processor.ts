@@ -84,7 +84,6 @@ export class Processor {
             name: "input",
             parametersCount: 1,
             execute: parameters => {
-                console.log(parameters)
                 this._setParameter(parameters[1], this._input.shift());
             },
         },
@@ -164,7 +163,6 @@ export class Processor {
 
     private _process() {
         const currentInstructionType = this._parseIntruction( this._memory[this._instructionPointer] );
-        // console.log(currentInstructionType)
         if (currentInstructionType == null || currentInstructionType.opcode === 99) {
             this.state = ProcessorState.HALT;
             this.reset();
